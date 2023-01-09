@@ -72,3 +72,4 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: int):
     # Retourner la VaR
     print(f"VaR au niveau de confiance {confidence_level}% : {var:.4f}")
     return var
+
