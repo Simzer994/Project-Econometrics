@@ -50,7 +50,7 @@ def plot_returns(data: pd.DataFrame, ticker: str=None):
 
 def weighted_hs_var(returns: pd.DataFrame, confidence_level: float):
     """ Estime la VaR en utilisant la méthode "Weighted HS" """
-    
+
     # Calculer la moyenne des rendements
     mean = returns.mean()
 
@@ -69,4 +69,5 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: float):
     var = sorted_returns.iloc[quantile_index]
 
     # Retourner la VaR
+    print(f"VaR au niveau de confiance {confidence_level}% : {var:.4f}")
     return var
