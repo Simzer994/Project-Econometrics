@@ -104,7 +104,6 @@ def find_best_garch_param(returns):
     return best_order
 
 
-
 def estimate_var_garch(returns, confidence_level=0.05, horizon=1):
     """
     Estimates Value-at-Risk (VaR) using GARCH method.
