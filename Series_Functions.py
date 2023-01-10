@@ -3,10 +3,11 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
-from scipy.stats import norm
 from arch import arch_model
-from sklearn.metrics import make_scorer
-from sklearn.model_selection import GridSearchCV
+from typing import Tuple
+from scipy.optimize import minimize
+from arch import arch_model
+
 
 def get_data(ticker: str):
     """Download the data for the given ticker symbol from Yahoo Finance"""
@@ -76,4 +77,33 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: int):
     print(f"VaR au niveau de confiance {confidence_level}% : {var:.4f}")
 
     return var
+
+def optimize_garch(returns: pd.DataFrame):
+    """ Find the best parameters p and q using the log likelihood function """
+
+    returns = returns.values
+
+    # Define the objective function
+    def objective_function(params):
+
+        # Create the model
+        model = arch_model(returns, p=params[0], q=params[1])
+
+        # Fit the model
+        model_fit = model.fit()
+
+        # Return the negative log likelihood
+        return -model_fit.loglikelihood
+
+    # Define the bounds
+    bounds = [(1, 5), (1, 5)]
+
+    # Define the starting values
+    starting_values = [1, 1]
+
+    # Find the optimal parameters
+    optimal_params = minimize(objective_function, starting_values, bounds=bounds)
+
+    # Return the optimal parameters
+    return optimal_params.x
 
