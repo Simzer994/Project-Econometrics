@@ -5,8 +5,8 @@ import matplotlib.ticker as mtick
 import numpy as np
 from scipy.stats import norm
 from arch import arch_model
-from scipy.optimize import minimize
-
+from sklearn.metrics import make_scorer
+from sklearn.model_selection import GridSearchCV
 
 def get_data(ticker: str):
     """Download the data for the given ticker symbol from Yahoo Finance"""
@@ -78,48 +78,50 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: int):
     return var
 
 
-def optimize_garch_parameters(returns, solver='SLSQP'):
-    """ Détermine les meilleurs paramètres p et q pour le modèle GARCH en utilisant une méthode de minimisation """
-    def garch_loss(parameters):
-        p = int(parameters[0])
-        q = int(parameters[1])
-        
-        model = arch_model(returns, mean='Zero', vol='GARCH', p=p, q=q)
-        model_fit = model.fit(disp='off')
-        loss = model_fit.aic
-        
-        return loss
-    
-    # Déterminer les meilleurs paramètres p et q en utilisant une méthode de minimisation
-    res = minimize(fun=garch_loss, x0=[1, 1], method=solver)
-    p = int(res.x[0])
-    q = int(res.x[1])
-    
-    # Retourner les paramètres optimaux
-    return p, q
+def find_best_garch_param(returns):
+    """
+    Function to find best GARCH(p,q) parameters using grid search with cross validation.
+    Parameters:
+        - returns: the return series
+    Returns:
+        - best_params: the best parameters (p,q) for the GARCH model
+    """
+    p_values = range(0,5)
+    q_values = range(0,5)
+    best_aic = np.inf
+    best_order = None
+    best_mdl = None
+    for i in p_values:
+        for j in q_values:
+            try:
+                tmp_mdl = arch_model(returns, vol='GARCH', p=i, o=0, q=j)
+                res = tmp_mdl.fit(update_freq=5)
+                if res.aic < best_aic:
+                    best_aic = res.aic
+                    best_order = (i, j)
+                    best_mdl = tmp_mdl
+            except: continue
+    return best_order
 
 
-def garch_var(returns: pd.DataFrame, confidence_level:int):
-    """ Estime la VaR en utilisant la méthode paramétrique "GARCH" """
 
-    # Calculer les meilleurs paramètres p et q
-    p, q = optimize_garch_parameters(returns=returns, solver='SLSQP')
+def estimate_var_garch(returns, confidence_level=0.05, horizon=1):
+    """
+    Estimates Value-at-Risk (VaR) using GARCH method.
+    Parameters:
+        - returns: the return series
+        - confidence_level: the level of confidence, default is 0.05
+        - horizon : the horizon of the forecast, default is 1
+    Returns:
+        - VaR: the estimated VaR
+    """
+    # Build GARCH model
+    model = arch_model(returns, mean='Constant', vol='GARCH', p=1, o=0, q=1)
 
-    # Créer un modèle GARCH
-    model = arch_model(returns, mean='Constant', vol='GARCH', p=1, q=1)
-    
-    # Estimer les paramètres du modèle
-    model_fit = model.fit(disp='off')
-    
-    # Calculer la moyenne et l'écart-type de la distribution de rendements simulée par le modèle GARCH
-    mean = model_fit.params['mu']
-    std = np.sqrt(model_fit.conditional_volatility)
-    
-    # Calculer le quantile de la loi normale correspondant au niveau de confiance choisi
-    quantile = norm.ppf(confidence_level / 100, mean, std)
-    
-    # Calculer la VaR au niveau de confiance choisi
-    var = quantile * std + mean
-    
-    # Retourner la VaR
-    return var
+    # Fit the model to the data
+    fit = model.fit()
+
+    # Estimate VaR at given confidence level
+    VaR = fit.var_forecast(horizon=horizon).mean['h.1'] * np.sqrt(horizon)
+    return VaR
+
