@@ -76,6 +76,25 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: int):
     # Retourner la VaR
     print(f"VaR au niveau de confiance {confidence_level}% : {var:.4f}")
 
+    # compute the average of the returns
+    average = returns.mean()
+
+    # plot the returns
+    returns.plot(label='Returns')
+    
+    # plot the VaR
+    plt.axhline(var, color='red', linestyle='dashed', linewidth=1, label = f'VaR {confidence_level}%')
+
+    # plot the mean
+    plt.axhline(average, color='black', linestyle='dashed', linewidth=1, label = 'Average return')
+
+    # change the y axis to percentage
+    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+
+    plt.legend()
+
+    plt.show()
+
     return var
 
 def optimize_garch(returns: pd.DataFrame):
@@ -84,7 +103,7 @@ def optimize_garch(returns: pd.DataFrame):
     returns = returns.values
 
     # Define the objective function
-    def objective_function(params):
+    def objective_function(params: list):
 
         # Create the model
         model = arch_model(returns, p=params[0], q=params[1])
