@@ -98,7 +98,7 @@ def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
     return None
 
 
-def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,ticker: str=None)->pd.Series:
+def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,ticker: str=None, disp: bool=True)->pd.Series:
     """ 
     Estimation of the Value at Risk (VaR) using the Weighted Historical Simulation method with a rolling window
 
@@ -120,8 +120,10 @@ def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,tic
     """
     if ticker == None:
         title = "Returns with Weighted HS VaR"
+        titleVaR = "VaR with Weighted HS VaR"
     else:
         title = f"Returns for {ticker} with Weighted HS VaR"
+        titleVaR = f"VaR for {ticker} with Weighted HS VaR"
     
     # Compute the rolling mean
     means = returns.rolling(window=window).mean()
@@ -154,20 +156,35 @@ def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,tic
         # Store the VaR in the dataframe
         VaR.iloc[i + window - 1] = var
 
-    # Plot the returns and the VaR on the same graph
-    returns.plot(label='Returns')
-    plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
+    if disp == True:
 
-    # change the bounds of the y axis
-    plt.ylim(-0.3, 0.3)
+        # Plot the returns and the VaR on the same graph
+        returns.plot(label='Returns')
+        plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
 
-    plt.title(label=title,fontweight='bold')
+        # change the bounds of the y axis
+        plt.ylim(-0.3, 0.3)
 
-    plt.legend()
+        plt.title(label=title,fontweight='bold')
 
-    plt.show()
+        plt.legend()
 
-    return VaR.VaR
+        plt.show()
+
+        # Plot the VaR
+        VaR.plot(label=f'VaR {confidence_level}%', linewidth=1, color='red')
+
+        plt.title(label=titleVaR,fontweight='bold')
+
+        plt.legend()
+
+        plt.show()
+
+        return VaR.VaR
+    
+    else:
+
+        return VaR.VaR
 
 
 def optimize_garch(returns: pd.DataFrame, bounds: list([int,int])):
@@ -215,7 +232,7 @@ def optimize_garch(returns: pd.DataFrame, bounds: list([int,int])):
     return p,q
 
 
-def garch_var(returns: pd.DataFrame, confidence_level: int, bounds: list([int,int]), p: int, q: int, ticker: str=None, window: int=100)->pd.Series:
+def garch_var(returns: pd.DataFrame, confidence_level: int, p: int, q: int, ticker: str=None, window: int=100, disp: bool=True)->pd.Series:
     """ 
     Estimation of the Value at Risk (VaR) using the GARCH method with a rolling window
 
@@ -239,8 +256,10 @@ def garch_var(returns: pd.DataFrame, confidence_level: int, bounds: list([int,in
     """
     if ticker == None:
         title = "Returns with GARCH VaR"
+        titleVaR = "VaR with GARCH"
     else:
         title = f"Returns for {ticker} with GARCH VaR"
+        titleVaR = f"VaR for {ticker} with GARCH"
 
     # Initialize the dataframe for the VaR
     VaR = pd.DataFrame(columns=['VaR'], index=returns.index)
@@ -264,13 +283,106 @@ def garch_var(returns: pd.DataFrame, confidence_level: int, bounds: list([int,in
     returns.plot(label='Returns')
     plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
 
-    # change the bounds of the y axis
-    plt.ylim(-0.3, 0.3)
+    if disp == True:
 
-    plt.title(label=title,fontweight='bold')
+        # change the bounds of the y axis
+        plt.ylim(-0.3, 0.3)
 
-    plt.legend()
+        plt.title(label=title,fontweight='bold')
 
-    plt.show()
+        plt.legend()
 
-    return VaR.VaR
+        plt.show()
+
+        # Plot the VaR
+        VaR.plot(label=f'VaR {confidence_level}%', linewidth=1, color='red')
+
+        plt.title(label=titleVaR,fontweight='bold')
+
+        plt.legend()
+
+        plt.show()
+
+        return VaR.VaR
+
+    else:
+
+        return VaR.VaR
+
+
+def expected_shortfall(returns: pd.DataFrame, confidence_level: int, window: int=100, ticker: str=None, disp: bool=True)->pd.Series:
+    """
+    Estimation of the Expected Shortfall (ES) using a rolling window
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to estimate the ES
+    confidence_level : int
+        The confidence level for which we want to estimate the ES
+    window : int
+        The size of the rolling window
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+
+    Returns
+    -------
+    ES : pd.Series
+        The estimated ES for the given confidence level
+    """
+    if ticker == None:
+        title = "Returns with ES"
+        titleES = "ES"
+    else:
+        title = f"Returns for {ticker} with ES"
+        titleES = f"ES for {ticker}"
+        
+    # Compute the VaR
+    VaR = weighted_hs_var(returns=returns, confidence_level=confidence_level, window=window, disp=False)
+
+    # Initialize the dataframe for the ES
+    ES = pd.DataFrame(columns=['ES'], index=returns.index)
+
+    for i in range(returns.shape[0] - window + 1):
+
+        # Select the returns for the current window
+        current_returns = returns.iloc[i:i + window]
+
+        # Select the Var for the current window
+        var = VaR.iloc[i]
+
+        # Compute the ES for the current window
+        es = current_returns[current_returns > var].mean()
+
+        # Store the ES in the dataframe
+        ES.iloc[i + window - 1] = es
+
+    if disp == True:
+
+        # Plot the returns and the ES on the same graph
+        returns.plot(label='Returns')
+        plt.plot(ES, color='red', linestyle='dashed', linewidth=3, label = f'ES {confidence_level}%')
+
+        # change the bounds of the y axis
+        plt.ylim(-0.3, 0.3)
+
+        plt.title(label=title,fontweight='bold')
+
+        plt.legend()
+
+        plt.show()
+
+        # Plot the ES
+        ES.plot(label = f'ES {confidence_level}%', linewidth=1, color='red')
+
+        plt.title(label=titleES,fontweight='bold')
+
+        plt.legend()
+
+        plt.show()
+    
+        return ES.ES
+    
+    else:
+
+        return ES.ES
