@@ -7,6 +7,9 @@ from arch import arch_model
 from typing import Tuple
 from scipy.optimize import minimize
 from arch import arch_model
+from scipy.stats import norm
+from arch.__future__ import reindexing
+import numba
 
 
 def get_data(ticker: str)->pd.DataFrame:
@@ -29,6 +32,9 @@ def get_data(ticker: str)->pd.DataFrame:
 
     # Keep only the closing price
     historical_price = historical_price['Close']
+
+    # Select the period from 2007 to 2020
+    historical_price = historical_price['2007-01-01':'2020-12-31']
 
     return historical_price
 
@@ -164,35 +170,107 @@ def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,tic
     return VaR.VaR
 
 
+def optimize_garch(returns: pd.DataFrame, bounds: list([int,int])):
+    """
+    Find the best parameters p and q using the log likelihood function
+    
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to find the best parameters
+        
+    Returns
+    -------
+    p,q : Tuple[int,int]
+        The best parameters p and q
+    """
 
-
-
-def optimize_garch(returns: pd.DataFrame):
-    """ Find the best parameters p and q using the log likelihood function """
-
+    # Convert the returns to a numpy array
     returns = returns.values
 
-    # Define the objective function
-    def objective_function(params: list):
+    # Initialize the parameters p and q
+    p,q=1,0
 
-        # Create the model
-        model = arch_model(returns, p=params[0], q=params[1])
+    model = arch_model(returns, p=1, q=0, dist='Normal', rescale=False)
 
-        # Fit the model
-        model_fit = model.fit()
+    # Compute the log likelihood
+    model_fit = model.fit(disp='off')
 
-        # Return the negative log likelihood
-        return -model_fit.loglikelihood
+    likelihood = model_fit.loglikelihood   
 
-    # Define the bounds
-    bounds = [(1, 5), (1, 5)]
+    for i in range(1,bounds[0]):
 
-    # Define the starting values
-    starting_values = [1, 1]
+        for j in range(0,bounds[1]):
 
-    # Find the optimal parameters
-    optimal_params = minimize(objective_function, starting_values, bounds=bounds)
+            # Fit the GARCH model
+            model = arch_model(returns, p=i, q=j, dist='Normal', rescale=False)
 
-    # Return the optimal parameters
-    return optimal_params.x
+            # Compute the log likelihood
+            model_fit = model.fit(disp='off')
+            
+            if model_fit.loglikelihood<likelihood:
+                p,q=i,j
+                likelihood=model_fit.loglikelihood
+    
+    return p,q
 
+
+def garch_var(returns: pd.DataFrame, confidence_level: int, bounds: list([int,int]), p: int, q: int, ticker: str=None, window: int=100)->pd.Series:
+    """ 
+    Estimation of the Value at Risk (VaR) using the GARCH method with a rolling window
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to estimate the VaR
+    confidence_level : int
+        The confidence level for which we want to estimate the VaR
+    bounds : list([int,int])
+        The bounds for the parameters p and q
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+    window : int
+        The size of the rolling window
+    
+    Returns
+    -------
+    VaR : pd.Series
+        The estimated VaR for the given confidence level
+    """
+    if ticker == None:
+        title = "Returns with GARCH VaR"
+    else:
+        title = f"Returns for {ticker} with GARCH VaR"
+
+    # Initialize the dataframe for the VaR
+    VaR = pd.DataFrame(columns=['VaR'], index=returns.index)
+
+    for i in range(returns.shape[0] - window + 1):
+
+        # Select the returns for the current window
+        current_returns = returns.iloc[i:i + window]
+
+        # Fit the GARCH model
+        model = arch_model(current_returns, p=p, q=q, dist='Normal', rescale=False)
+        model_fit = model.fit(disp='off')
+
+        # Compute the VaR for the current window
+        var = model_fit.forecast(horizon=1).variance.iloc[-1, 0] * norm.ppf((1-confidence_level/100))
+
+        # Store the VaR in the dataframe
+        VaR.iloc[i + window - 1] = - var
+
+    # Plot the returns and the VaR on the same graph
+    returns.plot(label='Returns')
+    plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
+
+    # change the bounds of the y axis
+    plt.ylim(-0.3, 0.3)
+
+    plt.title(label=title,fontweight='bold')
+
+    plt.legend()
+
+    plt.show()
+
+    return VaR.VaR
