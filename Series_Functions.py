@@ -9,42 +9,81 @@ from scipy.optimize import minimize
 from arch import arch_model
 
 
-def get_data(ticker: str):
-    """Download the data for the given ticker symbol from Yahoo Finance"""
-
-    # download the data using yahoo finance
+def get_data(ticker: str)->pd.DataFrame:
+    """
+    Download the data for the given ticker symbol from Yahoo Finance
+    
+    Parameters
+    ----------
+    ticker : str
+        The ticker symbol of the stock
+    
+    Returns
+    -------
+    historical_price : pd.DataFrame
+        The historical price of the stock
+    """
+    # Download the data using yahoo finance
     ticker = yf.Ticker(ticker)
     historical_price = ticker.history(period='max')
 
-    # keep only the closing price
+    # Keep only the closing price
     historical_price = historical_price['Close']
 
     return historical_price
 
 
-def get_returns(data: pd.DataFrame):
-    """Compute the returns for the given data"""
+def get_returns(data: pd.DataFrame)->pd.Series:
+    """
+    Compute the returns for the given data
+    
+    Parameters
+    ----------
+    data : pd.DataFrame
+        The data for which we want to compute the returns
+
+    Returns
+    -------
+    returns : pd.Series
+        The returns for the given data
+    """
+    # We drop the first line because it is NaN
     return data.pct_change().dropna()
 
 
-def plot_returns(data: pd.DataFrame, ticker: str=None):
-    """Plot the returns for the given data"""
+def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
+    """
+    Plot the returns for the given data
+    
+    Parameters  
+    ----------
+    data : pd.DataFrame
+        The data for which we want to plot the returns
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+    
+    Returns
+    -------
+    None
+    """
     if ticker == None:
         title = "Returns"
     else:
         title = f"Returns for {ticker}"
 
-    # compute the average of the returns
+    # Compute the average of the returns
     average = data.mean()
 
-    # plot the returns
-    data.plot(title=title, label='Returns')
+    # Plot the returns
+    data.plot(label='Returns')
     
     # plot the mean
-    plt.axhline(average, color='red', linestyle='dashed', linewidth=1, label = 'Average return')
+    plt.axhline(average, color='red', linestyle='dashed', linewidth=3, label = 'Average return')
 
     # change the y axis to percentage
     plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+
+    plt.title(label=title,fontweight='bold')
 
     plt.legend()
 
@@ -53,9 +92,31 @@ def plot_returns(data: pd.DataFrame, ticker: str=None):
     return None
 
 
-def weighted_hs_var(returns: pd.DataFrame, confidence_level: int, window: int):
-    """ Estime la VaR en utilisant la méthode "Weighted HS" avec une fenêtre glissante """
+def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,ticker: str=None)->pd.Series:
+    """ 
+    Estimation of the Value at Risk (VaR) using the Weighted Historical Simulation method with a rolling window
 
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to estimate the VaR
+    confidence_level : int
+        The confidence level for which we want to estimate the VaR
+    window : int
+        The size of the rolling window
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+    
+    Returns
+    -------
+    VaR : pd.Series
+        The estimated VaR for the given confidence level
+    """
+    if ticker == None:
+        title = "Returns with Weighted HS VaR"
+    else:
+        title = f"Returns for {ticker} with Weighted HS VaR"
+    
     # Compute the rolling mean
     means = returns.rolling(window=window).mean()
 
@@ -89,16 +150,18 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: int, window: int):
 
     # Plot the returns and the VaR on the same graph
     returns.plot(label='Returns')
-    plt.plot(VaR, color='red', linestyle='dashed', linewidth=1, label = f'VaR {confidence_level}%')
+    plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
 
     # change the bounds of the y axis
     plt.ylim(-0.3, 0.3)
+
+    plt.title(label=title,fontweight='bold')
 
     plt.legend()
 
     plt.show()
 
-    return VaR
+    return VaR.VaR
 
 
 
