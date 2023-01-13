@@ -91,6 +91,9 @@ def weighted_hs_var(returns: pd.DataFrame, confidence_level: int, window: int):
     returns.plot(label='Returns')
     plt.plot(VaR, color='red', linestyle='dashed', linewidth=1, label = f'VaR {confidence_level}%')
 
+    # change the bounds of the y axis
+    plt.ylim(-0.3, 0.3)
+
     plt.legend()
 
     plt.show()
