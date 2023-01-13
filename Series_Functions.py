@@ -53,49 +53,53 @@ def plot_returns(data: pd.DataFrame, ticker: str=None):
     return None
 
 
-def weighted_hs_var(returns: pd.DataFrame, confidence_level: int):
-    """ Estime la VaR en utilisant la méthode "Weighted HS" """
+def weighted_hs_var(returns: pd.DataFrame, confidence_level: int, window: int):
+    """ Estime la VaR en utilisant la méthode "Weighted HS" avec une fenêtre glissante """
 
-    # Calculer la moyenne des rendements
-    mean = returns.mean()
+    # Compute the rolling mean
+    means = returns.rolling(window=window).mean()
 
-    # Créer un tableau de poids en fonction de la distance de chaque rendement par rapport à la moyenne
-    # (ici, nous utilisons la fonction gaussienne comme kernel)
-    weights = np.exp(-((returns - mean)**2) / (2 * (mean**2)))
+    # Compute the rolling standard deviation
+    weights = np.exp(-((returns - means)**2) / (2 * (means**2)))
+    weights.rename('Weight', inplace=True)
 
-    # Trier les données de rendement et leurs poids correspondants en ordre croissant et décroissant
-    sorted_returns = returns.sort_values()
-    sorted_weights = weights.sort_values(ascending=False)
+    # Concatenate the returns and the weights
+    merged = pd.concat([returns, weights], axis=1).dropna()
 
-    # Calculer l'indice du quantile correspondant au niveau de confiance choisi
-    quantile_index = int((confidence_level / 100) * returns.shape[0])
+    VaR = pd.DataFrame(columns=['VaR'], index=merged.index)
 
-    # Sélectionner la valeur de rendement correspondante dans le tableau de rendements trié
-    var = sorted_returns.iloc[quantile_index]
+    for i in range(merged.shape[0] - window + 1):
 
-    # Retourner la VaR
-    print(f"VaR au niveau de confiance {confidence_level}% : {var:.4f}")
+        # Select the returns and the weights for the current window
+        current_returns = merged.iloc[i:i + window]['Close']
+        current_weights = merged.iloc[i:i + window]['Weight']
 
-    # compute the average of the returns
-    average = returns.mean()
+        # Sort the returns and the weights in ascending order
+        sorted_returns = current_returns.sort_values()
+        sorted_weights = current_weights.sort_values(ascending=False)
 
-    # plot the returns
+        # Compute the index of the quantile corresponding to the confidence level
+        quantile_index = int((confidence_level / 100) * current_returns.shape[0])
+
+        # Select the return corresponding to the quantile index
+        var = sorted_returns.iloc[quantile_index]
+
+        # Store the VaR in the dataframe
+        VaR.iloc[i + window - 1] = var
+
+    # Plot the returns and the VaR on the same graph
     returns.plot(label='Returns')
-    
-    # plot the VaR
-    plt.axhline(var, color='red', linestyle='dashed', linewidth=1, label = f'VaR {confidence_level}%')
-
-    # plot the mean
-    plt.axhline(average, color='black', linestyle='dashed', linewidth=1, label = 'Average return')
-
-    # change the y axis to percentage
-    plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+    plt.plot(VaR, color='red', linestyle='dashed', linewidth=1, label = f'VaR {confidence_level}%')
 
     plt.legend()
 
     plt.show()
 
-    return var
+    return VaR
+
+
+
+
 
 def optimize_garch(returns: pd.DataFrame):
     """ Find the best parameters p and q using the log likelihood function """
