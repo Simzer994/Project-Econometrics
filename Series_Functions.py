@@ -106,7 +106,7 @@ def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
     return None
 
 
-def weighted_hs_var(returns:pd.DataFrame,confidence_level:int,window:int=100,ticker:str=None,disp:bool=True)->pd.Series:
+def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,ticker:str=None,disp:bool=True)->pd.Series:
     """ 
     Estimation of the Value at Risk (VaR) using the Weighted Historical Simulation method with a rolling window
 
@@ -151,8 +151,8 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int,window:int=100,tic
         current_returns = merged.iloc[i:i + window]['Close']
         current_weights = merged.iloc[i:i + window]['Weight']
 
-        # Sort the returns and the weights in ascending order
-        sorted_returns = current_returns.sort_values()
+        # Sort the returns and the weights in non-ascending order
+        sorted_returns = current_returns.sort_values(ascending=False)
         sorted_weights = current_weights.sort_values(ascending=False)
 
         # Compute the index of the quantile corresponding to the confidence level
@@ -175,14 +175,22 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int,window:int=100,tic
 
         plt.title(label=title,fontweight='bold')
 
+
+        plt.xlabel('Dates',fontweight='bold')
+        plt.ylabel('Returns',fontweight='bold')
+
         plt.legend()
 
         plt.show()
+
 
         # Plot the VaR
         VaR.plot(label=f'VaR {confidence_level}%', linewidth=1, color='red')
 
         plt.title(label=titleVaR,fontweight='bold')
+
+        plt.xlabel('Dates',fontweight='bold')
+        plt.ylabel('VaR',fontweight='bold')
 
         plt.legend()
 
