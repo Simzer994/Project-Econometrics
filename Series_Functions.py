@@ -12,7 +12,7 @@ from arch.__future__ import reindexing
 import numba
 
 
-def get_data(ticker: str)->pd.DataFrame:
+def get_data(ticker: str,start:str='2007-01-01',end:str='2022-01-01')->pd.DataFrame:
     """
     Download the data for the given ticker symbol from Yahoo Finance
     
@@ -20,6 +20,10 @@ def get_data(ticker: str)->pd.DataFrame:
     ----------
     ticker : str
         The ticker symbol of the stock
+    start : str, optional
+        The start date of the period, by default '2007-01-01'
+    end : str, optional
+        The end date of the period, by default '2022-01-01'
     
     Returns
     -------
@@ -33,8 +37,8 @@ def get_data(ticker: str)->pd.DataFrame:
     # Keep only the closing price
     historical_price = historical_price['Close']
 
-    # Select the period from 2007 to 2020
-    historical_price = historical_price['2007-01-01':'2020-12-31']
+    # Select the period from start to end
+    historical_price = historical_price[start:end]
 
     return historical_price
 
@@ -83,11 +87,15 @@ def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
     # Plot the returns
     data.plot(label='Returns')
     
-    # plot the mean
+    # Plot the mean
     plt.axhline(average, color='red', linestyle='dashed', linewidth=3, label = 'Average return')
 
-    # change the y axis to percentage
+    # Change the y axis to percentage
     plt.gca().yaxis.set_major_formatter(mtick.PercentFormatter())
+
+    # Axis labels
+    plt.xlabel('Dates',fontweight='bold')
+    plt.ylabel('Returns',fontweight='bold')
 
     plt.title(label=title,fontweight='bold')
 
@@ -98,7 +106,7 @@ def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
     return None
 
 
-def weighted_hs_var(returns: pd.DataFrame,confidence_level: int, window: int,ticker: str=None, disp: bool=True)->pd.Series:
+def weighted_hs_var(returns:pd.DataFrame,confidence_level:int,window:int=100,ticker:str=None,disp:bool=True)->pd.Series:
     """ 
     Estimation of the Value at Risk (VaR) using the Weighted Historical Simulation method with a rolling window
 
