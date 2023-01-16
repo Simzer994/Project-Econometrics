@@ -3,13 +3,17 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
 import numpy as np
+import math
 from arch import arch_model
 from typing import Tuple
 from scipy.optimize import minimize
 from arch import arch_model
-from scipy.stats import norm
+from scipy.stats import norm,t
 from arch.__future__ import reindexing
 from statsmodels.tsa.stattools import adfuller
+from arch.univariate import arch_model, ConstantMean, GARCH, Normal,StudentsT
+from statistics import NormalDist
+
 
 
 def get_data(ticker: str,start:str='2007-01-01',end:str='2022-01-01')->pd.DataFrame:
@@ -127,8 +131,8 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
     
     Returns
     -------
-    VaR : pd.Series
-        The estimated VaR for the given confidence level
+    VaR : pd.DataFrame
+        The HS-VaR and Age-Weighted HS-VaR for the given returns
     """
     if ticker == None:
         title = "Returns with Weighted HS VaR"
@@ -204,9 +208,12 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
         return VaR
 
 
-def optimize_garch(returns: pd.DataFrame, bounds: list([int,int])):
+### USELESS FUNCTIONS ###
+
+
+def optimize_garch(returns: pd.DataFrame, bounds: list([int,int,int])):
     """
-    Find the best parameters p and q using the log likelihood function
+    Find the best parameters p, d and q using the log likelihood function
     
     Parameters
     ----------
@@ -215,41 +222,43 @@ def optimize_garch(returns: pd.DataFrame, bounds: list([int,int])):
         
     Returns
     -------
-    p,q : Tuple[int,int]
-        The best parameters p and q
+    p,d,q : Tuple[int,int,int]
+        The best parameters p, d and q
     """
 
     # Convert the returns to a numpy array
     returns = returns.values
 
     # Initialize the parameters p and q
-    p,q=1,0
+    p,d,q=1,0,0
 
-    model = arch_model(returns, p=1, q=0, dist='Normal', rescale=False)
+    model = arch_model(returns, p=1,q=0, dist='Normal', rescale=False)
 
     # Compute the log likelihood
     model_fit = model.fit(disp='off')
 
     likelihood = model_fit.loglikelihood   
 
-    for i in range(1,bounds[0]):
+    for a in range(1,bounds[0]):
 
-        for j in range(0,bounds[1]):
+        for b in range(0,bounds[1]):
 
-            # Fit the GARCH model
-            model = arch_model(returns, p=i, q=j, dist='Normal', rescale=False)
+            for c in range(0,bounds[2]):
 
-            # Compute the log likelihood
-            model_fit = model.fit(disp='off')
-            
-            if model_fit.loglikelihood<likelihood:
-                p,q=i,j
-                likelihood=model_fit.loglikelihood
-    
-    return p,q
+                # Fit the GARCH model
+                model = arch_model(returns,p=a,o=b,q=c,dist='Normal',rescale=False)
+
+                # Compute the log likelihood
+                model_fit = model.fit(disp='off')
+                
+                if model_fit.loglikelihood<likelihood:
+                    p,d,q
+                    likelihood=model_fit.loglikelihood
+        
+    return p,d,q
 
 
-def garch_var(returns: pd.DataFrame, confidence_level: int, p: int, q: int, ticker: str=None, window: int=100, disp: bool=True)->pd.Series:
+def garch_var(returns: pd.DataFrame,p:int,q:int,d:int,confidence_level:int=0.95,ticker:str=None,window:int=250,disp:bool=True)->pd.Series:
     """ 
     Estimation of the Value at Risk (VaR) using the GARCH method with a rolling window
 
@@ -257,14 +266,20 @@ def garch_var(returns: pd.DataFrame, confidence_level: int, p: int, q: int, tick
     ----------
     returns : pd.DataFrame
         The returns for which we want to estimate the VaR
+    p : int
+        The order of the AR part of the GARCH model
+    q : int
+        The order of the MA part of the GARCH model
+    d : int
+        The order of the differencing part of the GARCH model
     confidence_level : int
-        The confidence level for which we want to estimate the VaR
-    bounds : list([int,int])
-        The bounds for the parameters p and q
-    ticker : str, optional
-        The ticker symbol of the stock, by default None
+        The confidence level for the VaR
+    ticker : str
+        The ticker of the asset for which we want to estimate the VaR
     window : int
         The size of the rolling window
+    disp : bool 
+        If True, the returns and the VaR are plotted on the same graph
     
     Returns
     -------
@@ -327,6 +342,118 @@ def garch_var(returns: pd.DataFrame, confidence_level: int, p: int, q: int, tick
         return VaR.VaR
 
 
+## END OF USELESS FUNCTIONS ##
+
+
+def garch_var2(returns: pd.DataFrame,confidence_level:int=95,ticker:str=None,window:int=250,disp:bool=True)->pd.Series:
+    """ 
+    Estimation of the Value at Risk (VaR) using the GARCH method with a rolling window
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to estimate the VaR
+    confidence_level : int
+        The confidence level for the VaR
+    ticker : str
+        The ticker of the asset for which we want to estimate the VaR
+    window : int
+        The size of the rolling window
+    disp : bool 
+        If True, the returns and the VaR are plotted on the same graph
+    
+    Returns
+    -------
+    VaR : pd.Series
+        The estimated VaR for the given confidence level
+    """
+    if ticker == None:
+        title = "Returns with GARCH VaR"
+        titleVaR = "VaR with GARCH"
+    else:
+        title = f"Returns for {ticker} with GARCH VaR"
+        titleVaR = f"VaR for {ticker} with GARCH"
+
+    # Initialize the dataframe for the VaR
+    VaR = pd.DataFrame(columns=['VaR'], index=returns.index)
+    sigma2 = pd.DataFrame(columns=['sigma_2'], index=returns.index)
+
+    for i in range(returns.shape[0] - window + 1):
+
+        # Select the returns for the current window
+        current_returns = returns.iloc[i:i + window]
+
+        # Create the GARCH model 
+        model = arch_model(current_returns)
+        model = ConstantMean(current_returns)
+        model.volatility = GARCH(p=1, o=0, q=1)
+        model.distribution = Normal()
+        model = model.fit(disp='off')
+        aic = model.aic
+
+        # Choose between a Normal or a Student-t distribution
+        model2 = arch_model(current_returns)
+        model2 = ConstantMean(current_returns)
+        model2.volatility = GARCH(p=1, o=0, q=1)
+        model2.distribution = StudentsT()
+        model2 = model2.fit(disp='off')
+        aic2 = model2.aic
+        student = False
+
+        if aic2 < aic:
+            model = model2
+            student = True
+
+        if i == 0:
+                unc_variance = (model.params[1] / (1 - model.params[2] - model.params[3]))
+                sigma2.iloc[i+window-1] = model.params[1] + model.params[2]*(current_returns.iloc[window-1] - model.params[0])**2 + model.params[3]*unc_variance
+        else:
+                
+            sigma2.iloc[i+window-1] = model.params[1] + model.params[2]*(current_returns.iloc[window-1] - model.params[0])**2 + model.params[3]*sigma2.iloc[i+window-2] 
+
+        if student:
+            nu = round(model.params['nu'])
+            VaR.iloc[i+window-1] = model.params[0] + math.sqrt(sigma2.iloc[i+window-1])*t.ppf(1-confidence_level/100, nu)
+        
+        else:
+            VaR.iloc[i+window-1] = model.params[0] + math.sqrt(sigma2.iloc[i+window-1])*NormalDist(mu=0, sigma=1).inv_cdf(1-confidence_level/100)
+
+    if disp == True:
+
+        # Plot the returns and the VaR on the same graph
+        returns.plot(label='Returns')
+        plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
+
+        # Change the bounds of the y axis
+        plt.ylim(-0.3, 0.3)
+
+        plt.title(label=title,fontweight='bold')
+
+        plt.xlabel('Dates',fontweight='bold')
+        plt.ylabel('Returns',fontweight='bold')
+
+        plt.legend()
+
+        plt.show()
+
+        # Plot the VaR
+        VaR.plot(label=f'VaR {confidence_level}%', linewidth=1, color='red')
+
+        plt.title(label=titleVaR,fontweight='bold')
+
+        plt.xlabel('Dates',fontweight='bold')
+        plt.ylabel('VaR',fontweight='bold')
+
+        plt.legend()
+
+        plt.show()
+
+        return VaR.VaR
+
+    else:
+
+        return VaR.VaR
+        
 def expected_shortfall(returns: pd.DataFrame, confidence_level: int, window: int=100, ticker: str=None, disp: bool=True)->pd.Series:
     """
     Estimation of the Expected Shortfall (ES) using a rolling window
@@ -404,7 +531,7 @@ def expected_shortfall(returns: pd.DataFrame, confidence_level: int, window: int
 
         return ES.ES
 
-def Dickey_Fuller(returns: pd.DataFrame, ticker: str=None)->None:
+def Dickey_Fuller(returns: pd.DataFrame, ticker: str=None,disp:bool=True)->float:
     """ 
     Dickey-Fuller test for unit root
 
@@ -414,10 +541,13 @@ def Dickey_Fuller(returns: pd.DataFrame, ticker: str=None)->None:
         The returns for which we want to test the unit root
     ticker : str, optional
         The ticker symbol of the stock, by default None
+    disp : bool, optional
+        If True, the results of the test are printed, by default True
 
     Returns
     -------
-    None
+    float
+        The p-value of the test
     """
 
     # transform the returns into a numpy array
@@ -428,16 +558,17 @@ def Dickey_Fuller(returns: pd.DataFrame, ticker: str=None)->None:
 
     # Printing the statistical result of the adfuller test
 
-    if ticker == None:
-        print('Augmented Dickey_fuller Statistic: %f' % test[0])
-        print('p-value: %f' % test[1])
-    else:
-        print(f'Augmented Dickey_fuller Statistic for {ticker}: %f' % test[0])
-        print('p-value: %f' % test[1])
-    
-    # printing the critical values at different alpha levels.
-    print('critical values at different levels:')
-    for k, v in test[4].items():
-        print('\t%s: %.3f' % (k, v))
+    if disp:
+        if ticker == None:
+            print('Augmented Dickey_fuller Statistic: %f' % test[0])
+            print('p-value: %f' % test[1])
+        else:
+            print(f'Augmented Dickey_fuller Statistic for {ticker}: %f' % test[0])
+            print('p-value: %f' % test[1])
+        
+        # printing the critical values at different alpha levels.
+        print('Critical values at different levels:')
+        for k, v in test[4].items():
+            print('\t%s: %.3f' % (k, v))
 
-    return None
+    return test[1]
