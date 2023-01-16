@@ -368,7 +368,7 @@ def expected_shortfall(returns: pd.DataFrame, confidence_level: int, window: int
         var = VaR.iloc[i]
 
         # Compute the ES for the current window
-        es = current_returns[current_returns > var].mean()
+        es = current_returns[current_returns < var].mean()
 
         # Store the ES in the dataframe
         ES.iloc[i + window - 1] = es
