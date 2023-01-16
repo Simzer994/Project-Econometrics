@@ -293,7 +293,7 @@ def garch_var(returns: pd.DataFrame, confidence_level: int, p: int, q: int, tick
         var = model_fit.forecast(horizon=1).variance.iloc[-1, 0] * norm.ppf((1-confidence_level/100))
 
         # Store the VaR in the dataframe
-        VaR.iloc[i + window - 1] = var
+        VaR.iloc[i + window - 1] = - var
 
     # Plot the returns and the VaR on the same graph
     returns.plot(label='Returns')
