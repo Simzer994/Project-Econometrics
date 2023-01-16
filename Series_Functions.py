@@ -9,7 +9,6 @@ from scipy.optimize import minimize
 from arch import arch_model
 from scipy.stats import norm
 from arch.__future__ import reindexing
-import numba
 
 
 def get_data(ticker: str,start:str='2007-01-01',end:str='2022-01-01')->pd.DataFrame:
@@ -106,7 +105,7 @@ def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
     return None
 
 
-def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,ticker:str=None,disp:bool=True)->pd.Series:
+def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,ticker:str=None,disp:bool=True,l:float=0.96)->pd.Series:
     """ 
     Estimation of the Value at Risk (VaR) using the Weighted Historical Simulation method with a rolling window
 
@@ -120,6 +119,10 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
         The size of the rolling window
     ticker : str, optional
         The ticker symbol of the stock, by default None
+    disp : bool, optional
+        If True, the returns and the VaR are plotted on the same graph, by default True
+    l : float, optional
+        The lambda parameter for the Age-weighted, by default 0.96
     
     Returns
     -------
@@ -132,43 +135,39 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
     else:
         title = f"Returns for {ticker} with Weighted HS VaR"
         titleVaR = f"VaR for {ticker} with Weighted HS VaR"
-    
-    # Compute the rolling mean
-    means = returns.rolling(window=window).mean()
 
-    # Compute the rolling standard deviation
-    weights = np.exp(-((returns - means)**2) / (2 * (means**2)))
-    weights.rename('Weight', inplace=True)
+    VaR = pd.DataFrame(columns=['HS-VaR',"AWHS-VaR"], index=returns.index)
 
-    # Concatenate the returns and the weights
-    merged = pd.concat([returns, weights], axis=1).dropna()
-
-    VaR = pd.DataFrame(columns=['VaR'], index=merged.index)
-
-    for i in range(merged.shape[0] - window + 1):
+    for i in range(returns.shape[0] - window + 1):
 
         # Select the returns and the weights for the current window
-        current_returns = merged.iloc[i:i + window]['Close']
-        current_weights = merged.iloc[i:i + window]['Weight']
+        current = pd.DataFrame(returns.iloc[i:i + window].values,columns=["Returns"]).reset_index(drop=True)
+        current["Weights"] = np.sort([((1-l)*l**(i-1))/(1-l**window) for i in range(1,window+1)])
 
-        # Sort the returns and the weights in non-ascending order
-        sorted_returns = current_returns.sort_values(ascending=False)
-        sorted_weights = current_weights.sort_values(ascending=False)
+        # Sort the returns and the weights in non-ascending order and compute the cumulative sum of the weights
+
+        sorted_current = current.sort_values(by="Returns",ascending=False)
+        sorted_current["Cumsum"] = sorted_current["Weights"].cumsum()
+        sorted_current = sorted_current.reset_index(drop=True)
 
         # Compute the index of the quantile corresponding to the confidence level
-        quantile_index = int((confidence_level / 100) * current_returns.shape[0])
+        quantile_index = int((confidence_level / 100) * sorted_current.shape[0])
+        agquantile_index = ((sorted_current['Cumsum'] > 0.95)).idxmax()
 
         # Select the return corresponding to the quantile index
-        var = sorted_returns.iloc[quantile_index]
+        hsvar = sorted_current["Returns"].iloc[quantile_index]
+        aghsvar = sorted_current["Returns"].iloc[agquantile_index]
 
         # Store the VaR in the dataframe
-        VaR.iloc[i + window - 1] = var
+        VaR['HS-VaR'].iloc[i + window - 1] = hsvar 
+        VaR['AWHS-VaR'].iloc[i + window - 1] = aghsvar
 
     if disp == True:
 
         # Plot the returns and the VaR on the same graph
         returns.plot(label='Returns')
-        plt.plot(VaR, color='red', linestyle='dashed', linewidth=3, label = f'VaR {confidence_level}%')
+        plt.plot(VaR['HS-VaR'], color='red', linewidth=1.5, label = f'HS-VaR {confidence_level}%')
+        plt.plot(VaR['AWHS-VaR'], color='black', linewidth=1.5, label = f'Age-Weighted HS-VaR {confidence_level}%')
 
         # change the bounds of the y axis
         plt.ylim(-0.3, 0.3)
@@ -185,7 +184,8 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
 
 
         # Plot the VaR
-        VaR.plot(label=f'VaR {confidence_level}%', linewidth=1, color='red')
+        plt.plot(VaR['HS-VaR'], color='red', linewidth=1.5, label = f'HS-VaR {confidence_level}%')
+        plt.plot(VaR['AWHS-VaR'], color='black', linewidth=1.5, label = f'Age-Weighted HS-VaR {confidence_level}%')
 
         plt.title(label=titleVaR,fontweight='bold')
 
@@ -196,11 +196,11 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
 
         plt.show()
 
-        return VaR.VaR
+        return VaR
     
     else:
 
-        return VaR.VaR
+        return VaR
 
 
 def optimize_garch(returns: pd.DataFrame, bounds: list([int,int])):
