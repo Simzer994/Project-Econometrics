@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 from arch import arch_model
 from scipy.stats import norm
 from arch.__future__ import reindexing
+from statsmodels.tsa.stattools import adfuller
 
 
 def get_data(ticker: str,start:str='2007-01-01',end:str='2022-01-01')->pd.DataFrame:
@@ -402,3 +403,41 @@ def expected_shortfall(returns: pd.DataFrame, confidence_level: int, window: int
     else:
 
         return ES.ES
+
+def Dickey_Fuller(returns: pd.DataFrame, ticker: str=None)->None:
+    """ 
+    Dickey-Fuller test for unit root
+
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to test the unit root
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+
+    Returns
+    -------
+    None
+    """
+
+    # transform the returns into a numpy array
+    returns = returns.values
+
+    # make the Dickey-Fuller test
+    test = adfuller(returns)
+
+    # Printing the statistical result of the adfuller test
+
+    if ticker == None:
+        print('Augmented Dickey_fuller Statistic: %f' % test[0])
+        print('p-value: %f' % test[1])
+    else:
+        print(f'Augmented Dickey_fuller Statistic for {ticker}: %f' % test[0])
+        print('p-value: %f' % test[1])
+    
+    # printing the critical values at different alpha levels.
+    print('critical values at different levels:')
+    for k, v in test[4].items():
+        print('\t%s: %.3f' % (k, v))
+
+    return None
