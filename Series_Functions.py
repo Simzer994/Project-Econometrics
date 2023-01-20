@@ -1,17 +1,16 @@
 import yfinance as yf
 import pandas as pd
+import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mtick
-import numpy as np
 import math
 from arch import arch_model
+from arch.__future__ import reindexing
+from arch.univariate import arch_model, ConstantMean, GARCH, Normal,StudentsT
 from typing import Tuple
 from scipy.optimize import minimize
-from arch import arch_model
 from scipy.stats import norm,t
-from arch.__future__ import reindexing
 from statsmodels.tsa.stattools import adfuller
-from arch.univariate import arch_model, ConstantMean, GARCH, Normal,StudentsT
 from statistics import NormalDist
 
 
@@ -109,8 +108,7 @@ def plot_returns(data: pd.DataFrame, ticker: str=None)->None:
 
     return None
 
-
-def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,ticker:str=None,disp:bool=True,l:float=0.96)->pd.Series:
+def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,ticker:str=None,disp:bool=True,l:float=0.96)->pd.DataFrame:
     """ 
     Estimation of the Value at Risk (VaR) using the Weighted Historical Simulation method with a rolling window
 
@@ -179,14 +177,12 @@ def weighted_hs_var(returns:pd.DataFrame,confidence_level:int=95,window:int=250,
 
         plt.title(label=title,fontweight='bold')
 
-
         plt.xlabel('Dates',fontweight='bold')
         plt.ylabel('Returns',fontweight='bold')
 
         plt.legend()
 
         plt.show()
-
 
         # Plot the VaR
         plt.plot(VaR['HS-VaR'], color='red', linewidth=1.5, label = f'HS-VaR {confidence_level}%')
