@@ -489,7 +489,7 @@ def expected_shortfall(returns: pd.DataFrame, confidence_level: int, window: int
         current_returns = returns.iloc[i:i + window]
 
         # Select the Var for the current window
-        var = VaR.iloc[i]
+        var = VaR.iloc[i]["AWHS-VaR"]
 
         # Compute the ES for the current window
         es = current_returns[current_returns <= var].mean()
