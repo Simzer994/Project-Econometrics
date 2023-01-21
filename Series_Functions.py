@@ -568,3 +568,47 @@ def Dickey_Fuller(returns: pd.DataFrame, ticker: str=None,disp:bool=True)->float
             print('\t%s: %.3f' % (k, v))
 
     return test[1]
+
+
+def plot_comparison(VaR_NonParam: pd.DataFrame, VaR_Param: pd.DataFrame, ES: pd.DataFrame=None, ticker: str=None, confidence_level: int=95):
+    """
+    Plot the VaR and ES for the non-parametric and parametric methods
+
+    Parameters
+    ----------
+    VaR_NonParam : pd.DataFrame
+        The VaR for the non-parametric method
+    VaR_Param : pd.DataFrame
+        The VaR for the parametric method
+    ES : pd.DataFrame
+        The ES for the parametric method
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+    confidence_level : int, optional
+        The confidence level for which we want to plot the VaR and ES, by default 95
+    """
+    if ticker == None:
+        title = f"VaR and ES for the non-parametric and parametric methods with a confidence level of {confidence_level}%"
+    else:
+        title = f"VaR and ES for the non-parametric and parametric methods for {ticker} with a confidence level of {confidence_level}%"
+
+    # Plot the HS-VaR for the non-parametric method
+    VaR_NonParam["HS-VaR"].plot(label=f'Historical Simulation VaR {confidence_level}%', linewidth=1, color='red')
+
+    VaR_NonParam["AWHS-VaR"].plot(label=f'Age Weighted Historical Simulation VaR {confidence_level}%', linewidth=1, color='black')
+
+    # Plot the VaR for the parametric method
+    VaR_Param.plot(label=f'GARCH VaR {confidence_level}%', linewidth=1, color='blue')
+
+    if ES is not None:
+        # Plot the ES for the parametric method
+        ES.plot(label=f'ES {confidence_level}%', linewidth=1, color='green')
+
+    plt.title(label=title,fontweight='bold')
+
+    plt.xlabel('Dates',fontweight='bold')
+    plt.ylabel('VaR and ES',fontweight='bold')
+
+    plt.legend()
+
+    plt.show()
