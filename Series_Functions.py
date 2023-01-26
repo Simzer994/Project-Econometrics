@@ -12,7 +12,7 @@ from scipy.optimize import minimize
 from scipy.stats import norm,t
 from statsmodels.tsa.stattools import adfuller
 from statistics import NormalDist
-
+import os
 
 
 def get_data(ticker: str,start:str='2007-01-01',end:str='2022-01-01')->pd.DataFrame:
@@ -612,3 +612,20 @@ def plot_comparison(VaR_NonParam: pd.DataFrame, VaR_Param: pd.DataFrame, ES: pd.
     plt.legend()
 
     plt.show()
+
+
+def download_dataFrame(datas: dict, ticker: str):
+    """
+    Download the dataFrame as a csv file
+
+    Parameters
+    ----------
+    data : dict
+        The dict of dataFrame to download
+    ticker : str
+        The ticker symbol of the stock
+    """
+    if not os.path.exists('./datas/'+ticker):
+        os.makedirs('./datas/'+ticker)
+    for key, value in datas.items():
+        value.to_csv('./datas/'+ticker+'/'+key+'.csv')
