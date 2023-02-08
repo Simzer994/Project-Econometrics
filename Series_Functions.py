@@ -9,8 +9,9 @@ from arch.__future__ import reindexing
 from arch.univariate import arch_model, ConstantMean, GARCH, Normal,StudentsT
 from typing import Tuple
 from scipy.optimize import minimize
-from scipy.stats import norm,t
+from scipy.stats import norm,t,skew,kurtosis,jarque_bera
 from statsmodels.tsa.stattools import adfuller
+import statsmodels.api as sm
 from statistics import NormalDist
 import os
 
@@ -629,3 +630,55 @@ def download_dataFrame(datas: dict, ticker: str):
         os.makedirs('./datas/'+ticker)
     for key, value in datas.items():
         value.to_csv('./datas/'+ticker+'/'+key+'.csv')
+        
+def dev_from_normality(returns: pd.DataFrame, ticker: str=None, disp: bool=True):
+    """
+    Test the deviation from normality with the Jarque Bera test, the Kurtosis and the Skewness
+    
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to test the unit root
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+    disp : bool, optional
+        If True, the results of the test are printed, by default True
+    """
+    
+    print(f"Skewness of the returns: {returns.skew()}")
+    print(f"Kurtosis of the returns: {returns.kurtosis()}")
+    print(f"Jarque Bera test: {jarque_bera(returns)[0]} with a p-value of {jarque_bera(returns)[1]}")
+    return None
+
+def autocorr(returns: pd.DataFrame, ticker: str=None, lags=20): 
+    """
+    Plot the ACF of returns and squarred returns with the p-value of the Durbin-Watson test
+    
+    Parameters
+    ----------
+    returns : pd.DataFrame
+        The returns for which we want to test the unit root
+    ticker : str, optional
+        The ticker symbol of the stock, by default None
+    lags : int, optional   
+    """
+    # transform the returns into a numpy array
+    returns = returns.values
+    squarred_returns = returns**2
+    
+    if ticker == None:
+        title = f"Autocorrelation function of the returns"
+        title2 = f"Autocorrelation function of the squarred returns"
+    else:
+        title = f"Autocorrelation function of the returns for {ticker}"
+        title2 = f"Autocorrelation function of the squarred returns for {ticker}"
+
+    # Plot the ACF of returns
+    sm.graphics.tsa.plot_acf(returns, lags=lags, title=title)
+
+    # Plot the ACF of squarred returns
+    sm.graphics.tsa.plot_acf(squarred_returns, lags=lags, title=title2)
+    
+    # Print the value of the Durbin-Watson test
+    print(f"Durbin-Watson test for the returns: {sm.stats.stattools.durbin_watson(returns)}")
+    print(f"Durbin-Watson test for the squarred returns: {sm.stats.stattools.durbin_watson(squarred_returns)}")
